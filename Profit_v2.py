@@ -33,7 +33,12 @@ class ItemCalculator:
 
         receive_price = item['receive_price']  # 購買價格 (混沌石)
         sell_price = item['sell_price']  # 出售價格 (混沌石)
-        divine_sell_price = item['divine_sell_price']  # 神聖石價格 (神聖石)
+
+        # 嘗試將「神聖石販賣價格」轉換為數字
+        try:
+            divine_sell_price = float(Fraction(str(item['divine_sell_price'])))  # 轉換為浮點數
+        except ValueError:
+            raise ValueError("請輸入有效的數字（例如: 1.23 或 3/4）")
 
         # C收C賣利潤計算
         item['profit_c_to_c'] = round(sell_price - receive_price, 2)
@@ -43,7 +48,7 @@ class ItemCalculator:
         item['profit_c_to_d'] = round(sell_div_num_chaos - receive_price, 2)
 
         # 可購買數量
-        # item['purchasable_with_chaos'] = int(current_chaos // receive_price) if receive_price > 0 else 0
+        item['purchasable_with_chaos'] = int(current_chaos // receive_price) if receive_price > 0 else 0
 
         # 計算所需C
         item['required_chaos'] = item['purchasable_with_chaos'] * receive_price  # 所需C = 購買數量 * 購買價格
@@ -228,11 +233,9 @@ class ItemManagerApp:
 
             if new_value_str is not None:
                 try:
-                    # 嘗試解析為浮點數或分數
-                    if '/' in new_value_str:
-                        # 將分數轉換為浮點數
-                        numerator, denominator = map(float, new_value_str.split('/'))
-                        new_value = numerator / denominator
+                    # 處理分數輸入，如 "1/1.11"
+                    if re.match(r'^\d+/\d+(\.\d+)?$', new_value_str):
+                        new_value = float(Fraction(new_value_str))
                     else:
                         new_value = float(new_value_str)
 
@@ -403,21 +406,23 @@ class ItemManagerApp:
     def calculate_profit(self):
         """計算利潤並添加物品記錄"""
         try:
-            receive_price = float(self.entry_receive_price.get())
-            sell_price = float(self.entry_sell_price.get())
-            # 對神聖石販賣價格進行特殊處理
+            # 從 Entry 中獲取輸入值
+            receive_price_str = self.entry_receive_price.get()
+            sell_price_str = self.entry_sell_price.get()
             divine_sell_price_str = self.entry_divine_sell_price.get()
-            if '/' in divine_sell_price_str:
-                # 使用 Fraction 解析分數格式
-                divine_sell_price = float(Fraction(divine_sell_price_str))
-            else:
-                divine_sell_price = float(divine_sell_price_str)
+            item_coin_value_str = self.entry_item_coin_value.get()
 
-            item_coin_value = float(self.entry_item_coin_value.get())
+            # 使用 convert_input_to_float 方法來轉換輸入值
+            receive_price = self.convert_input_to_float(receive_price_str)
+            sell_price = self.convert_input_to_float(sell_price_str)
+            divine_sell_price = self.convert_input_to_float(divine_sell_price_str)
+            item_coin_value = self.convert_input_to_float(item_coin_value_str)
+
             if item_coin_value > 0:
                 self.item_coin_value = item_coin_value  # 更新類別變數中的金幣值
+
         except ValueError:
-            messagebox.showerror("錯誤", "請輸入有效的數字")
+            messagebox.showerror("錯誤", "請輸入有效的數字（如 1.11 或 1/1.11）")
             return
 
         # 利潤和金幣消耗計算邏輯
@@ -497,6 +502,19 @@ class ItemManagerApp:
         self.save_items_to_file()
 
         messagebox.showinfo("成功", "已成功刪除選中的紀錄。")
+
+    def convert_input_to_float(self, input_str):
+        """將用戶輸入的字串轉換為浮點數，允許分數格式"""
+        input_str = input_str.strip()
+
+        try:
+            if '/' in input_str:
+                numerator, denominator = input_str.split('/')
+                return float(numerator) / float(denominator)
+            else:
+                return float(input_str)
+        except (ValueError, ZeroDivisionError):
+            raise ValueError("請輸入有效的數字（例如: 1.23, 3/4 或 1/1.11）")
 
     def export_to_csv(self):
         """將物品資料匯出為 CSV"""
