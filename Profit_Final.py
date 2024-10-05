@@ -36,13 +36,13 @@ class ItemManagerApp:
     
         # 計算可購買數量
         item['purchasable_with_chaos'] = int(self.current_chaos // item['receive_price']) if item['receive_price'] > 0 else 0
-        total_chaos_from_divine = self.current_divine * self.dc_ratio
-        item['purchasable_with_divine'] = int(total_chaos_from_divine // item['receive_price']) if item['receive_price'] > 0 else 0
+    
+        # 計算每 1000 混沌石可購買數量
+        item['purchasable_with_1000_chaos'] = int(1000 // item['receive_price']) if item['receive_price'] > 0 else 0
     
         # 計算總利潤（取混沌石或神聖石能買的最大數量來計算）
-        max_purchasable = max(item['purchasable_with_chaos'], item['purchasable_with_divine'])
-        item['total_profit_c_to_c'] = item['profit_c_to_c'] * max_purchasable
-        item['total_profit_c_to_d'] = item['profit_c_to_d'] * max_purchasable
+        item['total_profit_c_to_c'] = item['profit_c_to_c'] * item['purchasable_with_chaos']
+        item['total_profit_c_to_d'] = item['profit_c_to_d'] * item['purchasable_with_chaos']
 
     def update_profits(self):
         """更新每個物品的利潤數據，根據新的 DC 比率，同時更新可購買數量"""
@@ -94,15 +94,14 @@ class ItemManagerApp:
         columns = (
             "item_name", "receive_price", "sell_price",
             "divine_sell_price", "profit_c_to_c", "profit_c_to_d",
-            "purchasable_with_chaos", "purchasable_with_divine", "total_profit_c_to_c", "total_profit_c_to_d"
+            "purchasable_with_chaos", "purchasable_with_1000_chaos",  # 移動到purchasable_with_chaos的右邊
+            "total_profit_c_to_c", "total_profit_c_to_d"
         )
 
         self.tree = ttk.Treeview(main_frame, columns=columns, show='headings')
         self.tree.grid(row=7, column=0, columnspan=4, sticky='nsew')
 
         self.tree.bind("<Button-1>", self.on_treeview_click)
-
-        
 
         # 設置每個欄位的標題和適當的寬度
         self.tree.heading("item_name", text="Item Name")
@@ -126,8 +125,9 @@ class ItemManagerApp:
         self.tree.heading("purchasable_with_chaos", text="Purchasable with Chaos")
         self.tree.column("purchasable_with_chaos", anchor=tk.CENTER, width=150)
 
-        self.tree.heading("purchasable_with_divine", text="Purchasable with Divine")
-        self.tree.column("purchasable_with_divine", anchor=tk.CENTER, width=150)
+        # 新增每 1000 混沌石可購買數量的欄位
+        self.tree.heading("purchasable_with_1000_chaos", text="Purchasable with 1000 Chaos")
+        self.tree.column("purchasable_with_1000_chaos", anchor=tk.CENTER, width=200)
 
         self.tree.heading("total_profit_c_to_c", text="Total Profit C to C")
         self.tree.column("total_profit_c_to_c", anchor=tk.CENTER, width=150)
@@ -145,10 +145,10 @@ class ItemManagerApp:
         chaos_button = ttk.Button(main_frame, text="修改混沌石數量", command=self.update_chaos_resources)
         chaos_button.grid(row=1, column=3, padx=5, pady=2)
 
-        self.divine_quantity_label = ttk.Label(main_frame, text=f"倉庫神聖石數量: {int(self.current_divine)}")
-        self.divine_quantity_label.grid(row=2, column=2, padx=10, pady=2, sticky=tk.E)
-        divine_button = ttk.Button(main_frame, text="修改神聖石數量", command=self.update_divine_resources)
-        divine_button.grid(row=2, column=3, padx=5, pady=2)
+        #self.divine_quantity_label = ttk.Label(main_frame, text=f"倉庫神聖石數量: {int(self.current_divine)}")
+        #self.divine_quantity_label.grid(row=2, column=2, padx=10, pady=2, sticky=tk.E)
+        #divine_button = ttk.Button(main_frame, text="修改神聖石數量", command=self.update_divine_resources)
+        #divine_button.grid(row=2, column=3, padx=5, pady=2)
 
         ttk.Label(main_frame, text="物品名稱:").grid(row=0, column=0, sticky=tk.W, pady=2)
         self.entry_item_name = ttk.Entry(main_frame, width=25)
@@ -229,7 +229,7 @@ class ItemManagerApp:
                 f"{item['profit_c_to_c']:.2f}",
                 f"{item['profit_c_to_d']:.2f}",
                 item['purchasable_with_chaos'],
-                item['purchasable_with_divine'],
+                item['purchasable_with_1000_chaos'],  # 新位置
                 f"{total_profit_c_to_c:.2f}",
                 f"{total_profit_c_to_d:.2f}"
             ), tags=(tag,))
@@ -362,14 +362,19 @@ class ItemManagerApp:
             messagebox.showerror("錯誤", "請選擇要刪除的紀錄。")
             return
 
-        selected_item_id = selected[0]
-        selected_index = self.tree.index(selected_item_id)
-        del self.items[selected_index]
+        try:
+            selected_item_id = selected[0]
+            selected_index = int(self.tree.index(selected_item_id))  # 確保轉換為正確的索引
+            del self.items[selected_index]
 
-        self.tree.delete(selected_item_id)
-        self.save_items_to_file()
+            self.tree.delete(selected_item_id)
+            self.save_items_to_file()
 
-        messagebox.showinfo("成功", "已成功刪除選中的紀錄。")
+            messagebox.showinfo("成功", "已成功刪除選中的紀錄。")
+        except IndexError as e:
+            messagebox.showerror("錯誤", f"刪除紀錄時發生錯誤：{e}")
+        except Exception as e:
+            messagebox.showerror("錯誤", f"發生未知錯誤：{e}")
 
     def update_chaos_resources(self):
         """修改倉庫混沌石數量"""
